@@ -1,0 +1,27 @@
+language: python
+jobs:
+  include:
+    - python: '3.5'
+    - python: '3.6'
+    - python: '3.7'
+      dist: 'xenial'
+      sudo: true
+
+before_install:
+  - sudo apt-get install libdiscid0
+
+install:
+  - pip install pipenv
+  - pipenv install --dev --ignore-pipfile
+  - pipenv run pip install tox-travis
+
+script:
+  - pipenv run tox
+  - pipenv run coverage run --branch -m py.test
+  - pipenv run coverage report -m
+
+after_success:
+  - pipenv run coveralls
+
+notifications:
+  email: false
