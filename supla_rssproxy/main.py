@@ -1,9 +1,12 @@
 import click
 import datetime
+import json
 import re
 import requests
+import time
 import uuid
 
+from email.utils import format_datetime
 from html.parser import HTMLParser
 from xml.etree import ElementTree
 
@@ -68,6 +71,8 @@ def get_rss_data(supla_id):
     base_url = "https://www.supla.fi/supla"
     url = f"{base_url}/{supla_id}"
     document = requests.get(url).text
+
+    print(f"[{datetime.datetime.now()}] Scraping {supla_id}")
     # We use our custom HTMLParserAdapter because XMLParser might not
     # work. HTMLParserAdapter just makes HTMLParser provided by Python
     # act like XMLParser does by default.
@@ -88,6 +93,8 @@ def get_rss_data(supla_id):
         href = a.attrib['href']
         # resolve_id still works here
         a_id = resolve_id(href)
+
+        print(f"[{datetime.datetime.now()}] Parsing {a_id}")
 
         xml = fetch_xml(a_id)
 
@@ -112,9 +119,11 @@ def get_rss_data(supla_id):
         # This is the thing that gets turned to RSS XML again
         item = {
             "title": program.attrib["program_name"],
-            "pubDate": date_start,
-            # UUID 5 (SHA1-hash) based on the URL
-            "guid": uuid.uuid5(uuid.NAMESPACE_URL, page_link),
+            # TODO: Figure out if we can get proper date info
+            "pubDate": format_datetime(datetime.datetime.strptime(date_start, "%Y-%m-%d").astimezone()),
+            # Since we're not setting this to no permalink, it can just
+            # be the link
+            "guid": page_link,
             "link": page_link,
             "description": program.attrib["description"],
             "content:encoded": program.attrib["description"],
@@ -128,25 +137,53 @@ def get_rss_data(supla_id):
             # These might be ignored but I'm trying anyway
             "itunes:duration": duration_str,
             "itunes:explicit": "no",
-            "itunes:episodeType": "full",
         }
 
         items.append(item)
     return items, series_name, series_description
 
 
-def create_rss(items, series_name, series_description):
+def create_rss(items, series_name, series_description, rss_url):
     # The episodes are reverse-chronological: items[0] is the latest one
-    link = items[0]["link"]
-    lastBuildDate = datetime.datetime.now()
+    link_text = items[0]["link"]
+    last_build_date_data = datetime.datetime.now().astimezone()
 
-    rss = ElementTree.Element("rss", attrib={"version": "2.0"})
-    channel = ElementTree.SubElement(rss, "channel", text=series_name)
-    ElementTree.SubElement(channel, "title", text=series_name)
-    ElementTree.SubElement(channel, "description", text=series_description)
-    ElementTree.SubElement(channel, "link", text=link)
-    ElementTree.SubElement(channel, "generator", text="supla-rssproxy")
-    ElementTree.SubElement(channel, "lastBuildDate", text=str(lastBuildDate))
+    rss = ElementTree.Element(
+        "rss",
+        attrib={
+            "version": "2.0",
+            "xmlns:itunes": "http://www.itunes.com/dtds/podcast-1.0.dtd",
+            "xmlns:content": "http://purl.org/rss/1.0/modules/content/",
+            "xmlns:atom": "http://www.w3.org/2005/Atom",
+        })
+    channel = ElementTree.SubElement(rss, "channel")
+
+    title = ElementTree.SubElement(channel, "title")
+    title.text = series_name
+
+    description = ElementTree.SubElement(channel, "description")
+    description.text = series_description
+
+    link = ElementTree.SubElement(channel, "link")
+    link.text = link_text
+
+    language = ElementTree.SubElement(channel, "language")
+    language.text = "fi-FI"
+
+    # Recommended link to self
+    atom_link = ElementTree.SubElement(channel, "atom:link", attrib={
+        "href": rss_url,
+        "rel": "self",
+        "type": "application/rss+xml"})
+
+    generator = ElementTree.SubElement(channel, "generator")
+    generator.text = "supla-rssproxy"
+
+    last_build_date = ElementTree.SubElement(channel, "lastBuildDate")
+    last_build_date.text = str(format_datetime(last_build_date_data))
+
+    itunes_explicit = ElementTree.SubElement(channel, "itunes:explicit")
+    itunes_explicit.text = "no"
 
     for i in items:
         item = ElementTree.SubElement(channel, "item")
@@ -154,19 +191,42 @@ def create_rss(items, series_name, series_description):
             if type(i[key]) is dict:
                 ElementTree.SubElement(item, key, attrib=i[key])
             else:
-                ElementTree.SubElement(item, key, text=str(i[key]))
+                e = ElementTree.SubElement(item, key)
+                e.text = str(i[key])
 
     return rss
 
 
 @click.command()
-@click.argument("supla_id")
-def main(supla_id):
-    supla_id = resolve_id(supla_id)
+@click.option("--config-file", required=True,
+    type=click.File(mode="r", encoding="UTF-8", lazy=False),
+    help="Location of json file to read config from")
+def main(config_file):
 
-    rss_data = get_rss_data(supla_id)
-    rss = create_rss(*rss_data)
-    print(ElementTree.tostring(rss))
+    config = json.load(config_file)
+    print(config)
+
+    podcasts = config["podcasts"]
+    own_url = config["own_url"]
+    target_dir = config["target_dir"]
+    refresh = int(config["refresh"])
+
+    # Run forever
+    while True:
+        for podcast_shortname in podcasts:
+            supla_id = resolve_id(podcasts[podcast_shortname])
+
+            rss_data = get_rss_data(supla_id)
+            rss_url = f"{own_url}/{podcast_shortname}.rss"
+            rss = create_rss(*rss_data, rss_url)
+            target_file = f"{target_dir}/{podcast_shortname}.rss"
+
+            ElementTree.ElementTree(rss).write(
+                target_file, encoding="UTF-8", xml_declaration=True)
+            print(f"[{datetime.datetime.now()}] Generated {target_file} from {supla_id}")
+
+        # Since python 3.5 always sleeps as long as we need it to, even
+        time.sleep(refresh)
 
 
 if __name__ == "__main__":
