@@ -148,6 +148,7 @@ def create_rss(items, series_name, series_description, rss_url):
     link_text = items[0]["link"]
     last_build_date_data = datetime.datetime.now().astimezone()
 
+    # We need a bunch of xml namespaces, see attribs in above function
     rss = ElementTree.Element(
         "rss",
         attrib={
@@ -164,9 +165,11 @@ def create_rss(items, series_name, series_description, rss_url):
     description = ElementTree.SubElement(channel, "description")
     description.text = series_description
 
+    # Link to the website of the podcast, I believe
     link = ElementTree.SubElement(channel, "link")
     link.text = link_text
 
+    # Not an unfair assumption, on a finnish language website
     language = ElementTree.SubElement(channel, "language")
     language.text = "fi-FI"
 
@@ -176,14 +179,16 @@ def create_rss(items, series_name, series_description, rss_url):
         "rel": "self",
         "type": "application/rss+xml"})
 
+    # Feels fair to say who we are
     generator = ElementTree.SubElement(channel, "generator")
     generator.text = "supla-rssproxy"
 
     last_build_date = ElementTree.SubElement(channel, "lastBuildDate")
     last_build_date.text = str(format_datetime(last_build_date_data))
 
+    # I mean, I guess this should be "yes" since I dunno
     itunes_explicit = ElementTree.SubElement(channel, "itunes:explicit")
-    itunes_explicit.text = "no"
+    itunes_explicit.text = "yes"
 
     for i in items:
         item = ElementTree.SubElement(channel, "item")
@@ -206,18 +211,26 @@ def main(config_file):
     config = json.load(config_file)
     print(config)
 
+    # There's no other validation of config other than that these exist
     podcasts = config["podcasts"]
     own_url = config["own_url"]
     target_dir = config["target_dir"]
 
+    # The key for podcasts is what generates the rss filename
     for podcast_shortname in podcasts:
         supla_id = resolve_id(podcasts[podcast_shortname])
 
-        rss_data = get_rss_data(supla_id)
+        # The locations of the file online and the physical file,
+        # respectively
         rss_url = f"{own_url}/{podcast_shortname}.rss"
-        rss = create_rss(*rss_data, rss_url)
         target_file = f"{target_dir}/{podcast_shortname}.rss"
 
+        # Run all the machinery above
+        rss_data = get_rss_data(supla_id)
+        rss = create_rss(*rss_data, rss_url)
+
+        # Write the actual XML document via another ElementTree
+        # construct
         ElementTree.ElementTree(rss).write(
             target_file, encoding="UTF-8", xml_declaration=True)
         print(f"[{datetime.datetime.now()}] Generated {target_file} from {supla_id}")
