@@ -209,24 +209,18 @@ def main(config_file):
     podcasts = config["podcasts"]
     own_url = config["own_url"]
     target_dir = config["target_dir"]
-    refresh = int(config["refresh"])
 
-    # Run forever
-    while True:
-        for podcast_shortname in podcasts:
-            supla_id = resolve_id(podcasts[podcast_shortname])
+    for podcast_shortname in podcasts:
+        supla_id = resolve_id(podcasts[podcast_shortname])
 
-            rss_data = get_rss_data(supla_id)
-            rss_url = f"{own_url}/{podcast_shortname}.rss"
-            rss = create_rss(*rss_data, rss_url)
-            target_file = f"{target_dir}/{podcast_shortname}.rss"
+        rss_data = get_rss_data(supla_id)
+        rss_url = f"{own_url}/{podcast_shortname}.rss"
+        rss = create_rss(*rss_data, rss_url)
+        target_file = f"{target_dir}/{podcast_shortname}.rss"
 
-            ElementTree.ElementTree(rss).write(
-                target_file, encoding="UTF-8", xml_declaration=True)
-            print(f"[{datetime.datetime.now()}] Generated {target_file} from {supla_id}")
-
-        # Since python 3.5 always sleeps as long as we need it to, even
-        time.sleep(refresh)
+        ElementTree.ElementTree(rss).write(
+            target_file, encoding="UTF-8", xml_declaration=True)
+        print(f"[{datetime.datetime.now()}] Generated {target_file} from {supla_id}")
 
 
 if __name__ == "__main__":

@@ -7,7 +7,6 @@ Make a json file containing the following
 {
     "own_url": "https://your_url",
     "target_dir": "~/public_html or whereever",
-    "refresh": 600,
     "podcasts": {
         "podcastname": "https://link to an episode on supla"
     }
@@ -16,7 +15,7 @@ Make a json file containing the following
 
 Run `supla-rssproxy --config-file <filename>`.
 
-supla-rssproxy will scrape the website every `refresh` seconds and produces a new RSS document.
+supla-rssproxy will scrape the website and produce a new RSS document.
 
 ## thanks
 
