@@ -1,9 +1,10 @@
 import click
 import re
 import requests
+import uuid
 
-from xml.etree import ElementTree
 from html.parser import HTMLParser
+from xml.etree import ElementTree
 
 
 class InvalidSuplaIdError(Exception):
@@ -66,13 +67,29 @@ def main(supla_id):
         a_id = resolve_id(href)
         print(a_id)
 
-    # xml = fetch_xml(supla_id)
-    #
-    # # This node is where we'll find the mp3 url
-    # audiomediafile = xml.findall("./Clip/AudioMediaFiles/AudioMediaFile")
-    # mp3_url = audiomediafile[0].text
-    #
-    # print(mp3_url)
+        xml = fetch_xml(a_id)
+
+        # Get full link to page for this episode
+        page_link = f"https://www.supla.fi{href}"
+
+        # Let's find what this episode is about
+        program = xml.find("./Behavior/Program")
+        date_start = xml.find("./Clip/PassthroughVariables/variable[@name='date_start']").attrib["value"]
+
+        # This is the thing that gets turned to RSS XML again
+        item = {
+            "title": program.attrib["program_name"],
+            "pubDate": date_start,
+            "guid": uuid.uuid5(uuid.NAMESPACE_URL, page_link),
+            "description": program.attrib["description"],
+            "link": page_link,
+        }
+
+        # This node is where we'll find the mp3 url
+        audiomediafile = xml.find("./Clip/AudioMediaFiles/AudioMediaFile")
+        mp3_url = audiomediafile.text
+
+        print(mp3_url, item)
 
 
 if __name__ == "__main__":
