@@ -4,6 +4,8 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+requests = "~=2.21"
+click = '~=7.0'
 
 [dev-packages]
 pytest = '>=3.4'
