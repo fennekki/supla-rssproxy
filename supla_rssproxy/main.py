@@ -1,4 +1,5 @@
 import click
+import datetime
 import re
 import requests
 import uuid
@@ -74,22 +75,38 @@ def main(supla_id):
 
         # Let's find what this episode is about
         program = xml.find("./Behavior/Program")
+        duration = xml.find("./Clip/Duration")
         date_start = xml.find("./Clip/PassthroughVariables/variable[@name='date_start']").attrib["value"]
+
+        # This node is where we'll find the mp3 url
+        audiomediafile = xml.find("./Clip/AudioMediaFiles/AudioMediaFile")
+        audiofile_url = audiomediafile.text
+        audiofile_head = requests.head(audiofile_url)
+        audiofile_length = audiofile_head.headers["Content-Length"]
+        audiofile_type = audiofile_head.headers["Content-Type"]
+
+        # Calculate and format length
+        duration_str = str(datetime.timedelta(seconds=int(duration.text)))
 
         # This is the thing that gets turned to RSS XML again
         item = {
             "title": program.attrib["program_name"],
             "pubDate": date_start,
             "guid": uuid.uuid5(uuid.NAMESPACE_URL, page_link),
-            "description": program.attrib["description"],
             "link": page_link,
+            "description": program.attrib["description"],
+            "content:encoded": program.attrib["description"],
+            "enclosure": {
+                "length": audiofile_length,  # In bytes
+                "type": audiofile_type,  # Mimetype
+                "url": audiofile_url,
+            },
+            "itunes:duration": duration_str,
+            "itunes:explicit": "no",
+            "itunes:episodeType": "full",
         }
 
-        # This node is where we'll find the mp3 url
-        audiomediafile = xml.find("./Clip/AudioMediaFiles/AudioMediaFile")
-        mp3_url = audiomediafile.text
-
-        print(mp3_url, item)
+        print(item)
 
 
 if __name__ == "__main__":
