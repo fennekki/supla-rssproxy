@@ -35,7 +35,7 @@ def fetch_xml(supla_id):
     """Fetch XML describing a single episode on Supla."""
     # We happen to know this is where the XML is stored. Hacky, in that
     # sense
-    url = f"http://gatling.nelonenmedia.fi/media-xml-cache?id={supla_id}"
+    url = f"https://gatling.nelonenmedia.fi/media-xml-cache?id={supla_id}"
     ref = f"https://www.supla.fi/supla/{supla_id}"
 
     return ElementTree.fromstring(requests.get(url, headers={"Referer": ref}).text)
