@@ -5,6 +5,7 @@ import re
 import requests
 import time
 import uuid
+import html
 
 from email.utils import format_datetime
 from html.parser import HTMLParser
@@ -24,8 +25,8 @@ def resolve_id(supla_id):
         supla_id = int(supla_id)
     except ValueError:
         try:
-            match = re.match(r"(((https?://)?(www\.)?supla\.fi)?/)?supla/([0-9]+)", supla_id)
-            supla_id = int(match[5])
+            match = re.match(r"(((https?://)?(www\.)?supla\.fi)?/)?(supla|audio)/([0-9]+)", supla_id)
+            supla_id = int(match[6])
         except ValueError:
             raise InvalidSuplaIdError(f"Invalid id {supla_id}")
     return supla_id
@@ -64,7 +65,7 @@ class HTMLParserAdapter(HTMLParser):
 def get_rss_data(supla_id):
     """Get objects matching the data scraped from Supla.
 
-    First we scrape the HTML document for the URLs of other episodes,
+    First we scrape the html_tree document for the URLs of other episodes,
     then we query the known XML location for all those episodes. This
     data is used to construct the starting point for RSS.
     """
@@ -76,15 +77,24 @@ def get_rss_data(supla_id):
     # We use our custom HTMLParserAdapter because XMLParser might not
     # work. HTMLParserAdapter just makes HTMLParser provided by Python
     # act like XMLParser does by default.
-    html = ElementTree.XML(document, parser=HTMLParserAdapter())
+    html_tree = ElementTree.XML(document, parser=HTMLParserAdapter())
+
+    # It's CDATA inside and for some reason the HTMLParser doesn't seem
+    # to understand how to get rid of that
+    json_chunk = html_tree.find(".//script[@id='initial-state']").text[9:-3]
+    data_pages = json.loads(json_chunk)["pageStore"]["pages"]
+    json_inner = html.unescape(data_pages[list(data_pages.keys())[0]]["json"])
+    data_inner = json.loads(json_inner)
+
+    series_name = data_inner["metadata"]["jsonld"]["partOfSeries"]["name"]
+
+    # Other hacks to find  description
+    # series_description = html_tree.find(".//div[@class='series-info__description']").text
+    series_description = ""
 
     # Hacky, but works? Depends on the sidebar having exactly this
     # structure
-    other_episodes = html.findall(".//div[@class='video-sidebar__content']/div/div/a")
-
-    # Other hacks to find name, description
-    series_name = html.find(".//h2[@class='series-info__title']").text
-    series_description = html.find(".//div[@class='series-info__description']").text
+    other_episodes = html_tree.findall(".//div[@class='video-sidebar__content']/div/div/a")
 
     # Collect all the episodes here
     items = []
