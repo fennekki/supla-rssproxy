@@ -32,7 +32,7 @@ def resolve_id(supla_id):
     return supla_id
 
 
-def fetch_xml(supla_id):
+def fetch_episode_xml(supla_id):
     """Fetch XML describing a single episode on Supla."""
     # We happen to know this is where the XML is stored. Hacky, in that
     # sense
@@ -40,6 +40,43 @@ def fetch_xml(supla_id):
     ref = f"https://www.supla.fi/supla/{supla_id}"
 
     return ElementTree.fromstring(requests.get(url, headers={"Referer": ref}).text)
+
+
+def fetch_episodes_json(series_id):
+    """Fetch list of episodes matching series id."""
+    url = "https://supla-prod-component-api.nm-services.nelonenmedia.fi/api/component/2600350"
+    params = {
+        "offset": "0",
+        "current_primary_content": "podcast",
+        "current_series_content_order_direction": "desc",
+        "current_series_id": series_id,
+        "app": "supla",
+        "client": "web"
+    }
+
+    # First request with no limit, which will get us some default amount
+    # (10 I think?)
+    first_req = json.loads(requests.get(url, params=params).text)
+    # Hits contains total amount
+    hits = first_req["hits"]
+    params["limit"] = hits
+
+    # Get final data
+    return json.loads(requests.get(url, params=params).text)
+
+
+def fetch_series(supla_id):
+    """Resolve series id from given episode and return info."""
+    root_episode = fetch_episode_xml(supla_id)
+    series_id = root_episode.find(
+        ".//PassthroughVariables/variable[@name='series_id']"
+        ).attrib["value"]
+    series_name = root_episode.find(
+        ".//PassthroughVariables/variable[@name='series_name']"
+        ).attrib["value"]
+
+    # Return both the json and the series name which we need later
+    return fetch_episodes_json(series_id), series_name
 
 
 class HTMLParserAdapter(HTMLParser):
@@ -63,61 +100,36 @@ class HTMLParserAdapter(HTMLParser):
 
 
 def get_rss_data(supla_id):
-    """Get objects matching the data scraped from Supla.
+    """Get objects matching the data from Supla."""
+    print(f"[{datetime.datetime.now()}] Fetching {supla_id}")
 
-    First we scrape the html_tree document for the URLs of other episodes,
-    then we query the known XML location for all those episodes. This
-    data is used to construct the starting point for RSS.
-    """
-    base_url = "https://www.supla.fi/supla"
-    url = f"{base_url}/{supla_id}"
-    document = requests.get(url).text
+    episodes, series_name = fetch_series(supla_id)
 
-    print(f"[{datetime.datetime.now()}] Scraping {supla_id}")
-    # We use our custom HTMLParserAdapter because XMLParser might not
-    # work. HTMLParserAdapter just makes HTMLParser provided by Python
-    # act like XMLParser does by default.
-    html_tree = ElementTree.XML(document, parser=HTMLParserAdapter())
-
-    # It's CDATA inside and for some reason the HTMLParser doesn't seem
-    # to understand how to get rid of that
-    json_chunk = html_tree.find(".//script[@id='initial-state']").text[9:-3]
-    data_pages = json.loads(json_chunk)["pageStore"]["pages"]
-    json_inner = html.unescape(data_pages[list(data_pages.keys())[0]]["json"])
-    data_inner = json.loads(json_inner)
-
-    series_name = data_inner["metadata"]["jsonld"]["partOfSeries"]["name"]
-
-    # Other hacks to find  description
-    # series_description = html_tree.find(".//div[@class='series-info__description']").text
+    # TODO: figure out where we could get this easily. Perhaps it still
+    # needs scraping
     series_description = ""
-
-    # Hacky, but works? Depends on the sidebar having exactly this
-    # structure
-    other_episodes = html_tree.findall(".//div[@class='video-sidebar__content']/div/div/a")
-
     # Collect all the episodes here
     items = []
-    for a in other_episodes:
-        # The href attribute from the links, in format /supla/<id>
-        href = a.attrib['href']
-        # resolve_id still works here
-        a_id = resolve_id(href)
+    for ep in episodes["items"]:
+        # The id is in several places but most conveniently in "id"
+        a_id = ep["id"]
 
-        print(f"[{datetime.datetime.now()}] Parsing {a_id}")
-
-        xml = fetch_xml(a_id)
-
+        # href is in the JSON too
+        href = ep["link"]["href"]
         # Get full link to page for this episode
         page_link = f"https://www.supla.fi{href}"
 
+        print(f"[{datetime.datetime.now()}] Parsing XML for {a_id}")
+
+        xml = fetch_episode_xml(a_id)
+
         # Let's find what this episode is about
-        program = xml.find("./Behavior/Program")
-        duration = xml.find("./Clip/Duration")
-        date_start = xml.find("./Clip/PassthroughVariables/variable[@name='date_start']").attrib["value"]
+        program = xml.find(".//Behavior/Program")
+        duration = xml.find(".//Clip/Duration")
+        date_start = xml.find(".//Clip/PassthroughVariables/variable[@name='date_start']").attrib["value"]
 
         # This node is where we'll find the mp3 url
-        audiomediafile = xml.find("./Clip/AudioMediaFiles/AudioMediaFile")
+        audiomediafile = xml.find(".//Clip/AudioMediaFiles/AudioMediaFile")
         audiofile_url = audiomediafile.text
         audiofile_head = requests.head(audiofile_url)
         audiofile_length = audiofile_head.headers["Content-Length"]
@@ -219,7 +231,6 @@ def create_rss(items, series_name, series_description, rss_url):
 def main(config_file):
 
     config = json.load(config_file)
-    print(config)
 
     # There's no other validation of config other than that these exist
     podcasts = config["podcasts"]
