@@ -13,9 +13,23 @@ Make a json file containing the following
 }
 ```
 
+where
+
+- `own_url` should contain the base URL the feeds will be hosted at,
+- `target_dir` the directory on the current system to place the generated files
+  in; and
+- `podcasts` is an object where
+  - each key is the name that will be used to generate the rss file (eg.
+    `podcastname` will become `podcastname.rss`, and
+  - each value is a link to one of the episodes in the series you want to make
+    the feed for (eg. `https://www.supla.fi/supla/3320811`).
+
 Run `supla-rssproxy --config-file <filename>`.
 
-supla-rssproxy will scrape the website and produce a new RSS document.
+supla-rssproxy will fetch data from the Supla API and write RSS files into
+`target_dir`. **WARNING**: Files with the same name that already exist in the
+target directorywill be replaced!! This is an intentional design decision to
+allow updating the same files.
 
 ## thanks
 
@@ -24,14 +38,7 @@ finding the location of the URLs for me when I'd missed them completely.
 
 ## notes
 
-The url to fetch from is
-`http://gatling.nelonenmedia.fi/media-xml-cache?id={ID}&v=2` where `{ID}` is
-replaced by the Supla episode id (eg. for `https://www.supla.fi/supla/3320811`
-this would be `3320811`). This XML file contains data we want
-
-Looks like
-`https://dynamic-gatling.nelonenmedia.fi/cos/videos/2/limit=100&orderby=airtime&order_direction=desc&media_type=audio_podcast&series={series
-id}` is where we should find the data on the series but it seems to require an API key.
+-
 
 ## coding conventions
 
