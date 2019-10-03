@@ -42,9 +42,9 @@ def fetch_episode_xml(supla_id):
     return ElementTree.fromstring(requests.get(url, headers={"Referer": ref}).text)
 
 
-def fetch_episodes_json(series_id):
+def fetch_episodes_json(series_id, limit_recent):
     """Fetch list of episodes matching series id."""
-    url = "https://supla-prod-component-api.nm-services.nelonenmedia.fi/api/component/2600350"
+    url = "https://prod-component-api.nm-services.nelonenmedia.fi/api/component/2600350"
     params = {
         "offset": "0",
         "current_primary_content": "podcast",
@@ -57,15 +57,43 @@ def fetch_episodes_json(series_id):
     # First request with no limit, which will get us some default amount
     # (10 I think?)
     first_req = json.loads(requests.get(url, params=params).text)
+
     # Hits contains total amount
     hits = first_req["hits"]
-    params["limit"] = hits
+    pagination_limit = 100
+    max_episodes = min(hits, limit_recent)
 
-    # Get final data
-    return json.loads(requests.get(url, params=params).text)
+    if max_episodes < hits:
+        print(f"[{datetime.datetime.now()}] "
+            f"Loading {max_episodes} episodes (Limited from {hits})")
+
+    if max_episodes <= pagination_limit:
+        # We don't need to page
+        params["limit"] = max_episodes
+
+        # Get final data
+        return json.loads(requests.get(url, params=params).text)
+    else:
+        data = {
+            "items": [],
+            "hits": hits,
+            "generated": 0,
+        }
+        for offset in range(0, max_episodes, pagination_limit):
+            params["limit"] = pagination_limit
+            params["offset"] = offset
+
+            page = json.loads(requests.get(url, params=params).text)
+            data["items"].extend(page["items"])
+            data["generated"] = page["generated"]
+
+            print(f"[{datetime.datetime.now()}] "
+                f"Loaded {offset + pagination_limit}/{max_episodes}")
+
+        return data
 
 
-def fetch_series(supla_id):
+def fetch_series(supla_id, limit_recent):
     """Resolve series id from given episode and return info."""
     root_episode = fetch_episode_xml(supla_id)
     series_id = root_episode.find(
@@ -75,8 +103,9 @@ def fetch_series(supla_id):
         ".//PassthroughVariables/variable[@name='series_name']"
         ).attrib["value"]
 
+    print(f"[{datetime.datetime.now()}] Series id:", series_id)
     # Return both the json and the series name which we need later
-    return fetch_episodes_json(series_id), series_name
+    return fetch_episodes_json(series_id, limit_recent), series_name
 
 
 class HTMLParserAdapter(HTMLParser):
@@ -99,17 +128,18 @@ class HTMLParserAdapter(HTMLParser):
         return self.treebuilder.close()
 
 
-def get_rss_data(supla_id):
+def get_rss_data(supla_id, limit_recent):
     """Get objects matching the data from Supla."""
     print(f"[{datetime.datetime.now()}] Fetching {supla_id}")
 
-    episodes, series_name = fetch_series(supla_id)
+    episodes, series_name = fetch_series(supla_id, limit_recent)
 
     # TODO: figure out where we could get this easily. Perhaps it still
     # needs scraping
     series_description = ""
     # Collect all the episodes here
     items = []
+
     for ep in episodes["items"]:
         # The id is in several places but most conveniently in "id"
         a_id = ep["id"]
@@ -136,7 +166,13 @@ def get_rss_data(supla_id):
         audiofile_type = audiofile_head.headers["Content-Type"]
 
         # Calculate and format length
-        duration_str = str(datetime.timedelta(seconds=int(duration.text)))
+        try:
+            duration_str = str(datetime.timedelta(seconds=int(duration.text)))
+        except (TypeError, ValueError):
+            duration_str = ""
+
+        description = program.attrib.get("description", "")
+
 
         # This is the thing that gets turned to RSS XML again
         item = {
@@ -147,8 +183,8 @@ def get_rss_data(supla_id):
             # be the link
             "guid": page_link,
             "link": page_link,
-            "description": program.attrib["description"],
-            "content:encoded": program.attrib["description"],
+            "description": description,
+            "content:encoded": description,
             # This needs to become an <enclosure> with attributes, no
             # body
             "enclosure": {
@@ -236,6 +272,7 @@ def main(config_file):
     podcasts = config["podcasts"]
     own_url = config["own_url"]
     target_dir = config["target_dir"]
+    limit_recent = config.get("limit_recent", 200)
 
     # The key for podcasts is what generates the rss filename
     for podcast_shortname in podcasts:
@@ -247,7 +284,7 @@ def main(config_file):
         target_file = f"{target_dir}/{podcast_shortname}.rss"
 
         # Run all the machinery above
-        rss_data = get_rss_data(supla_id)
+        rss_data = get_rss_data(supla_id, limit_recent)
         rss = create_rss(*rss_data, rss_url)
 
         # Write the actual XML document via another ElementTree
