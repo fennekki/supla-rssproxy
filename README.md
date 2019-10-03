@@ -2,22 +2,25 @@
 
 ## howto
 
-Make a json file containing the following
+Make a json file containing the following structure
 ```json
 {
     "own_url": "https://your_url",
-    "target_dir": "~/public_html or whereever",
+    "target_dir": "/directory/to/write/feeds/in",
+    "limit_recent": 200,
     "podcasts": {
-        "podcastname": "https://link to an episode on supla"
+        "podcastname": "https://www.supla.fi/supla/episodenumber"
     }
 }
 ```
 
 where
 
-- `own_url` should contain the base URL the feeds will be hosted at,
+- `own_url` should contain the base URL the feeds will be hosted at;
 - `target_dir` the directory on the current system to place the generated files
-  in; and
+  in;
+- `limit_recent` specifies how many episodes to put in the feed per podcast
+  (default: 200); and
 - `podcasts` is an object where
   - each key is the name that will be used to generate the rss file (eg.
     `podcastname` will become `podcastname.rss`, and
@@ -27,9 +30,11 @@ where
 Run `supla-rssproxy --config-file <filename>`.
 
 supla-rssproxy will fetch data from the Supla API and write RSS files into
-`target_dir`. **WARNING**: Files with the same name that already exist in the
-target directorywill be replaced!! This is an intentional design decision to
-allow updating the same files.
+`target_dir`.
+
+**WARNING**: Files with the same name that already exist in the target
+directory will be replaced!! This is an intentional design decision to allow
+updating the same files.
 
 ## thanks
 
