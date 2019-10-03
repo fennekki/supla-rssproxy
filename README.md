@@ -16,7 +16,10 @@ Make a json file containing the following structure
 
 where
 
-- `own_url` should contain the base URL the feeds will be hosted at;
+- `own_url` should contain the base URL the feeds will be hosted at (the RSS
+  format specifies that it should contain information about where it is hosted.
+  This can probably be a `file://` url or a dummy url if you aren't hosting the
+  feed anywhere);
 - `target_dir` the directory on the current system to place the generated files
   in;
 - `limit_recent` specifies how many episodes to put in the feed per podcast
