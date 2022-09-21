@@ -44,7 +44,8 @@ setup(
 
     entry_points={
         "console_scripts": [
-            "supla-rssproxy=supla_rssproxy.main:main"
+            "supla-rssproxy-old=supla_rssproxy.old:main",
+            "supla-rssproxy=supla_rssproxy.main:main",
         ]
     }
 )
