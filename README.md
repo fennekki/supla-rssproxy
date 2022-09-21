@@ -9,7 +9,7 @@ Make a json file containing the following structure
     "target_dir": "/directory/to/write/feeds/in",
     "limit_recent": 200,
     "podcasts": {
-        "podcastname": "https://www.supla.fi/supla/episodenumber"
+        "podcastname": "https://www.supla.fi/podcast/podcastname"
     }
 }
 ```
@@ -27,8 +27,8 @@ where
 - `podcasts` is an object where
   - each key is the name that will be used to generate the rss file (eg.
     `podcastname` will become `podcastname.rss`, and
-  - each value is a link to one of the episodes in the series you want to make
-    the feed for (eg. `https://www.supla.fi/supla/3320811`).
+  - each value is either the UUID of a specific podcast, or a link to the
+    podcast page (eg. https://www.supla.fi/podcast/aamulypsy)
 
 Run `supla-rssproxy --config-file <filename>`.
 

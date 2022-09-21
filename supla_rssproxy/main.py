@@ -32,7 +32,7 @@ def get_podcast_data(podcast_id, *, limit):
 
     podcast = {
         "title": podcast_data["name"],
-        "link": podcast_data["thumbnailUrl"],
+        "image": podcast_data["thumbnailUrl"],
         "description": podcast_data["description"],
         "pubDate": podcast_data["datePublished"],  # TODO: WRONG!! parse and format!!
         "link": podcast_data["contentUrl"],
@@ -120,6 +120,14 @@ def generate_rss(podcast, rss_url):
     # Link to the website of the podcast, I believe
     link = ElementTree.SubElement(channel, "link")
     link.text = podcast["link"]
+
+    image = ElementTree.SubElement(channel, "image")
+    image_url = ElementTree.SubElement(image, "url")
+    image_url.text = podcast["image"]
+    image_title = ElementTree.SubElement(image, "title")
+    image_title.text = podcast["title"]
+    image_link = ElementTree.SubElement(image, "link")
+    image_link.text = podcast["link"]
 
     # Not an unfair assumption, on a finnish language website
     language = ElementTree.SubElement(channel, "language")
