@@ -34,7 +34,7 @@ def get_podcast_data(podcast_id, *, limit):
         "title": podcast_data["name"],
         "image": podcast_data["thumbnailUrl"],
         "description": podcast_data["description"],
-        "pubDate": podcast_data["datePublished"],  # TODO: WRONG!! parse and format!!
+        "pubDate": podcast_data["datePublished"],  # TODO: WRONG!! parse and format!! # TODO also it's not used rn
         "link": podcast_data["contentUrl"],
         "episodes": []
     }
@@ -63,17 +63,17 @@ def get_podcast_data(podcast_id, *, limit):
         audio_duration = item_data["audio_duration"]
         audio_length = item_data["audio_length"]
         last_modified = item_data["last_modified"]
+        publication_date = item_data["publication_date"]
         cover_url = item_data["cover_url"]
 
         duration_str = str(datetime.timedelta(seconds=int(audio_duration)))
-        # TODO might want something other than modified date, we can
-        # probly get other data too
         modified_datetime = format_datetime(
             # the times look like 2022-09-20T22:32:58.932060Z but
             # strtime doesnt understand micros
-            # we also need to put in the UTC timezone
+            # we also need to put in the UTC timezone. Sometimes there's
+            # no micros so split on Z too.
             datetime.datetime.strptime(
-                last_modified.split(".")[0],
+                publication_date.split(".")[0].split("Z")[0],
                 "%Y-%m-%dT%H:%M:%S"
             ).replace(tzinfo=datetime.timezone.utc))
 
