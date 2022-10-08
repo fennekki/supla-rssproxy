@@ -35,8 +35,8 @@ setup(
     packages=find_packages(exclude=["tests"]),
 
     install_requires=[
-        "requests>=2.21",
-        "click>=7.0",
+        "requests>=2.28",
+        "click>=8.0",
     ],
 
     package_data={},
